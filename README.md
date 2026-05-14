@@ -12,6 +12,7 @@ Bu aracı yalnızca hak sahibi olduğunuz, kullanım izniniz olan veya yasal ola
 - `youtube.com/watch`, `youtu.be`, Shorts ve live video linkleri desteklenir
 - `yt-dlp` ile YouTube ses indirme
 - FFmpeg ile MP3 dönüştürme
+- İndirilen MP3 dosyasının adı YouTube video başlığından üretilir
 - 128, 192 ve 320 kbps kalite seçimi
 - Dosya yükleme alanı yok
 - Maksimum 500 MB indirme limiti

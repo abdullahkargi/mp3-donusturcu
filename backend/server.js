@@ -25,6 +25,7 @@ const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB || 500);
 const OUTPUT_TTL_MINUTES = Number(process.env.OUTPUT_TTL_MINUTES || 30);
 const OUTPUT_TTL_MS = OUTPUT_TTL_MINUTES * 60 * 1000;
 const YTDLP_TIMEOUT_MS = Number(process.env.YTDLP_TIMEOUT_MS || 10 * 60 * 1000);
+const YTDLP_PLAYER_CLIENTS = process.env.YTDLP_PLAYER_CLIENTS || "android,web";
 const SIZE_LIMIT_MESSAGE =
   "Dosya boyutu çok büyük. Maksimum 500 MB dönüştürebilirsiniz.";
 const YOUTUBE_DOMAINS = new Set([
@@ -88,6 +89,7 @@ app.get("/api/health", (req, res) => {
 app.post("/api/convert-link", async (req, res, next) => {
   let workDir;
   let outputPath;
+  let metadataPath;
   let conversionSucceeded = false;
 
   try {
@@ -98,28 +100,35 @@ app.post("/api/convert-link", async (req, res, next) => {
 
     workDir = path.join(TEMP_DIR, id);
     outputPath = path.join(OUTPUT_DIR, outputFilename);
+    metadataPath = getMetadataPath(outputPath);
     await fsp.mkdir(workDir, { recursive: true });
 
-    const producedFile = await downloadYouTubeAudioAsMp3({
+    const conversion = await downloadYouTubeAudioAsMp3({
       url: youtubeUrl.toString(),
       quality,
       workDir
     });
 
-    await fsp.rename(producedFile, outputPath);
+    await fsp.rename(conversion.mp3Path, outputPath);
     await assertFileIsReadable(outputPath);
+    await writeDownloadMetadata(metadataPath, conversion.title);
 
     conversionSucceeded = true;
     scheduleFileRemoval(outputPath, OUTPUT_TTL_MS);
+    scheduleFileRemoval(metadataPath, OUTPUT_TTL_MS);
 
     res.json({
       message: "Dönüştürme tamamlandı",
       filename: outputFilename,
+      title: conversion.title,
       downloadUrl: `/api/download/${outputFilename}`
     });
   } catch (error) {
     if (!conversionSucceeded && outputPath) {
       await safeRemove(outputPath);
+    }
+    if (!conversionSucceeded && metadataPath) {
+      await safeRemove(metadataPath);
     }
     next(error);
   } finally {
@@ -132,11 +141,14 @@ app.post("/api/convert-link", async (req, res, next) => {
 app.get("/api/download/:filename", async (req, res, next) => {
   try {
     const filePath = getSafeOutputPath(req.params.filename);
+    const metadataPath = getMetadataPath(filePath);
+    const downloadName = await readDownloadName(metadataPath);
     await fsp.access(filePath, fs.constants.R_OK);
 
-    res.download(filePath, "youtube-mp3.mp3", (error) => {
+    res.download(filePath, downloadName, (error) => {
       if (!error) {
         scheduleFileRemoval(filePath, 60 * 1000);
+        scheduleFileRemoval(metadataPath, 60 * 1000);
       }
     });
   } catch {
@@ -253,8 +265,11 @@ async function downloadYouTubeAudioAsMp3({ url, quality, workDir }) {
   const outputTemplate = path.join(workDir, "audio.%(ext)s");
 
   try {
-    await runYtDlp([
+    const result = await runYtDlp([
       url,
+      "--print",
+      "%(title)s",
+      "--no-simulate",
       "--extract-audio",
       "--audio-format",
       "mp3",
@@ -271,21 +286,30 @@ async function downloadYouTubeAudioAsMp3({ url, quality, workDir }) {
       ffmpegPath,
       "--restrict-filenames",
       "--windows-filenames",
+      "--extractor-args",
+      `youtube:player_client=${YTDLP_PLAYER_CLIENTS}`,
+      "--no-progress",
       "--no-warnings"
     ]);
+
+    const mp3Path = await findMp3File(workDir);
+    if (!mp3Path) {
+      throw new AppError(
+        "YouTube videosundan MP3 oluşturulamadı. Lütfen farklı bir video deneyin.",
+        400
+      );
+    }
+
+    return {
+      mp3Path,
+      title: extractTitleFromYtDlpOutput(result.stdout)
+    };
   } catch (error) {
+    if (error instanceof AppError) {
+      throw error;
+    }
     throw normalizeYtDlpError(error);
   }
-
-  const mp3Path = await findMp3File(workDir);
-  if (!mp3Path) {
-    throw new AppError(
-      "YouTube videosundan MP3 oluşturulamadı. Lütfen farklı bir video deneyin.",
-      400
-    );
-  }
-
-  return mp3Path;
 }
 
 function runYtDlp(args) {
@@ -351,14 +375,23 @@ function normalizeYtDlpError(error) {
     return new AppError("FFmpeg bulunamadı. Lütfen FFmpeg kurulumunu kontrol edin.", 500);
   }
 
-  if (
-    normalized.includes("private video") ||
-    normalized.includes("members-only") ||
-    normalized.includes("sign in") ||
-    normalized.includes("age-restricted")
-  ) {
+  if (normalized.includes("confirm you're not a bot") || normalized.includes("not a bot")) {
     return new AppError(
-      "Bu YouTube videosuna erişilemiyor. Herkese açık ve erişilebilir bir video linki deneyin.",
+      "YouTube bu isteği bot kontrolüne taktı. Biraz sonra tekrar deneyin veya farklı, herkese açık bir video linki kullanın.",
+      400
+    );
+  }
+
+  if (normalized.includes("private video") || normalized.includes("members-only")) {
+    return new AppError(
+      "Bu video private veya üyeye özel görünüyor. Herkese açık bir YouTube videosu deneyin.",
+      400
+    );
+  }
+
+  if (normalized.includes("age-restricted") || normalized.includes("sign in")) {
+    return new AppError(
+      "Bu video oturum açma veya yaş doğrulaması istiyor. Herkese açık ve kısıtsız bir video linki deneyin.",
       400
     );
   }
@@ -423,6 +456,48 @@ function getSafeOutputPath(filename) {
   }
 
   return filePath;
+}
+
+function getMetadataPath(outputPath) {
+  return outputPath.replace(/\.mp3$/i, ".json");
+}
+
+function extractTitleFromYtDlpOutput(stdout) {
+  const lines = String(stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines[0] || "YouTube video";
+}
+
+function buildDownloadName(title) {
+  const cleanedTitle = String(title || "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "")
+    .trim()
+    .slice(0, 180);
+
+  return `${cleanedTitle || "YouTube video"}.mp3`;
+}
+
+async function writeDownloadMetadata(metadataPath, title) {
+  const downloadName = buildDownloadName(title);
+  await fsp.writeFile(
+    metadataPath,
+    JSON.stringify({ title, downloadName }, null, 2),
+    "utf8"
+  );
+}
+
+async function readDownloadName(metadataPath) {
+  try {
+    const metadata = JSON.parse(await fsp.readFile(metadataPath, "utf8"));
+    return buildDownloadName(metadata.title);
+  } catch {
+    return "YouTube video.mp3";
+  }
 }
 
 function scheduleFileRemoval(filePath, delayMs) {
