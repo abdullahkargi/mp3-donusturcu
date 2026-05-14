@@ -2,7 +2,7 @@
   "name": "linkten-mp3-donusturucu",
   "version": "1.0.0",
   "private": true,
-  "description": "Modern, reklamsiz linkten MP3 donusturucu uygulamasi.",
+  "description": "Modern, reklamsiz YouTube MP3 donusturucu uygulamasi.",
   "workspaces": [
     "frontend",
     "backend"

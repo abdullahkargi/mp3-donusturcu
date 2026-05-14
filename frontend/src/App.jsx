@@ -44,7 +44,7 @@ export default function App() {
     event.preventDefault();
 
     if (!url.trim()) {
-      setError("Lütfen bir medya linki girin.");
+      setError("Lütfen bir YouTube linki girin.");
       setStatus("idle");
       setProgress(0);
       setDownloadPath("");
@@ -84,13 +84,13 @@ export default function App() {
 
         <header className="mb-6 text-center">
           <p className="mb-3 text-sm font-bold uppercase text-emerald-700 dark:text-emerald-300">
-            Reklamsız MP3 aracı
+            Reklamsız YouTube MP3 aracı
           </p>
           <h1 className="text-4xl font-black leading-tight text-zinc-950 sm:text-5xl dark:text-white">
-            Hızlı Linkten MP3 Dönüştürücü
+            Hızlı YouTube MP3 Dönüştürücü
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg dark:text-zinc-300">
-            Doğrudan medya dosyası linklerini saniyeler içinde MP3'e çevir.
+            YouTube video linklerini saniyeler içinde MP3'e çevir.
           </p>
         </header>
 

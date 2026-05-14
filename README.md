@@ -1,29 +1,25 @@
-# Hızlı Linkten MP3 Dönüştürücü
+# Hızlı YouTube MP3 Dönüştürücü
 
-Reklamsız, hızlı ve sade bir linkten MP3 dönüştürücü web uygulaması. Kullanıcı doğrudan erişilebilir bir medya dosyası linki girer, backend dosyayı geçici olarak indirir, FFmpeg ile MP3'e çevirir ve indirme linki üretir.
+Reklamsız, hızlı ve sade bir YouTube'dan MP3 dönüştürücü web uygulaması. Kullanıcı bir YouTube video linki girer, backend `yt-dlp` ile videonun sesini geçici olarak indirir, FFmpeg ile MP3'e çevirir ve indirme linki üretir.
 
-> Bu proje YouTube, Instagram veya TikTok sayfa linklerini çözmez. Linkin doğrudan indirilebilir medya dosyası olması gerekir. Örnek: `https://site.com/video.mp4`
+Bu aracı yalnızca hak sahibi olduğunuz, kullanım izniniz olan veya yasal olarak indirebileceğiniz içerikler için kullanın.
 
 ## Özellikler
 
 - React + Vite + Tailwind CSS frontend
 - Node.js + Express backend
+- Sadece YouTube video linki kabul eder
+- `youtube.com/watch`, `youtu.be`, Shorts ve live video linkleri desteklenir
+- `yt-dlp` ile YouTube ses indirme
 - FFmpeg ile MP3 dönüştürme
 - 128, 192 ve 320 kbps kalite seçimi
-- Sadece link ile kullanım, dosya yükleme alanı yok
-- Maksimum 500 MB dosya limiti
+- Dosya yükleme alanı yok
+- Maksimum 500 MB indirme limiti
 - Koyu/açık tema
 - Mobil uyumlu arayüz
 - Kullanıcı dostu hata mesajları
 - CORS ayarı environment variable ile yapılır
-- Localhost, private IP ve internal network adresleri engellenir
-- Geçici indirilen dosyalar ve çıktı MP3 dosyaları otomatik temizlenir
-
-## Desteklenen Link Formatları
-
-Backend yalnızca şu uzantılara sahip doğrudan medya linklerini kabul eder:
-
-`.mp4`, `.mov`, `.webm`, `.mkv`, `.avi`, `.wav`, `.m4a`, `.aac`, `.flac`
+- Geçici dosyalar otomatik temizlenir
 
 ## Proje Yapısı
 
@@ -50,13 +46,13 @@ project-root/
 
 ## Local Kurulum
 
-Kök klasörde tüm bağımlılıkları tek seferde kurabilirsiniz:
+Kök klasörde bağımlılıkları kurun:
 
 ```bash
 npm install
 ```
 
-Sonra frontend ve backend'i birlikte başlatın:
+Frontend ve backend'i birlikte başlatın:
 
 ```bash
 npm run dev
@@ -88,7 +84,7 @@ npm run dev
 
 ## FFmpeg Kurulumu
 
-Backend MP3 dönüştürme için FFmpeg kullanır.
+Backend MP3 dönüştürme için FFmpeg kullanır. Projede `ffmpeg-static` bağımlılığı vardır, bu yüzden çoğu ortamda ekstra kurulum yapmadan çalışır. Local geliştirmede sistem FFmpeg kurulumu yine en sorunsuz yoldur.
 
 Windows için FFmpeg kurulumu:
 
@@ -102,9 +98,19 @@ Kurulumu kontrol etmek için:
 ffmpeg -version
 ```
 
-Projede `ffmpeg-static` bağımlılığı da vardır. Yine de local geliştirmede sistem FFmpeg kurulumu en sorunsuz yoldur. Özel bir FFmpeg binary kullanmak isterseniz backend `.env` dosyasında `FFMPEG_PATH` verebilirsiniz.
+Özel bir FFmpeg binary kullanmak isterseniz backend `.env` dosyasında `FFMPEG_PATH` verebilirsiniz.
 
-`yt-dlp` bu projede gerekli değildir çünkü platformlardan sayfa linki çözme yapılmıyor; yalnızca doğrudan medya dosyası linkleri dönüştürülüyor.
+## yt-dlp Bilgisi
+
+YouTube linklerini çözmek için `yt-dlp` gerekir. Bu projede `youtube-dl-exec` paketi kullanılır ve `npm install` sırasında uygun `yt-dlp` binary'sini otomatik indirir.
+
+Windows'ta manuel kurmak isterseniz:
+
+```bash
+winget install yt-dlp
+```
+
+Render gibi ortamlarda normalde ekstra komut gerekmez. Eğer deploy sırasında GitHub indirme limitine takılırsanız Render environment variable olarak `GH_TOKEN` eklemek yardımcı olabilir.
 
 ## Environment Variables
 
@@ -127,9 +133,16 @@ PORT=4000
 FRONTEND_URL=http://localhost:5173
 MAX_FILE_SIZE_MB=500
 OUTPUT_TTL_MINUTES=30
+YTDLP_TIMEOUT_MS=600000
 ```
 
-Production'da `FRONTEND_URL` içine Vercel frontend adresinizi yazın. Birden fazla origin gerekiyorsa virgülle ayırabilirsiniz:
+Production'da `FRONTEND_URL` içine Vercel frontend adresinizi yazın:
+
+```env
+FRONTEND_URL=https://frontend-linkim.vercel.app
+```
+
+Birden fazla origin gerekiyorsa virgülle ayırabilirsiniz:
 
 ```env
 FRONTEND_URL=https://frontend-linkim.vercel.app,http://localhost:5173
@@ -147,7 +160,7 @@ Body:
 
 ```json
 {
-  "url": "https://site.com/video.mp4",
+  "url": "https://www.youtube.com/watch?v=VIDEO_ID",
   "quality": "192"
 }
 ```
@@ -236,17 +249,21 @@ Frontend, `VITE_API_URL` ile Render backend'e istek atar. Backend tarafında `FR
 
 ## Sık Karşılaşılan Hatalar
 
-### "Desteklenmeyen link"
+### "Sadece YouTube video linkleri desteklenir"
 
-Girilen URL doğrudan medya dosyası değildir veya desteklenen uzantılardan biriyle bitmiyordur. Sayfa linki yerine doğrudan `.mp4`, `.m4a`, `.flac` gibi dosya linki kullanın.
+Girilen URL YouTube domaininde değildir. `youtube.com/watch`, `youtu.be` veya YouTube Shorts linki kullanın.
+
+### "Lütfen geçerli bir YouTube video linki girin"
+
+Girilen linkte video ID bulunamamıştır. Playlist veya kanal linki yerine tek bir video linki girin.
 
 ### "Dosya boyutu çok büyük"
 
-Dosya 500 MB limitini aşıyordur. Daha küçük bir medya dosyası kullanın.
+İndirilecek ses dosyası 500 MB limitini aşıyordur. Daha kısa veya daha küçük bir video deneyin.
 
-### "Güvenlik nedeniyle private IP adresleri desteklenmez"
+### "Bu YouTube videosuna erişilemiyor"
 
-Localhost, `127.0.0.1`, private IP veya internal network adresleri güvenlik nedeniyle engellenir. Public ve doğrudan erişilebilir bir medya linki kullanın.
+Video private, üyeye özel, yaş kısıtlamalı veya oturum gerektiriyor olabilir. Herkese açık bir video linki deneyin.
 
 ### CORS hatası
 
@@ -262,6 +279,6 @@ winget install Gyan.FFmpeg
 
 Sonra terminali kapatıp yeniden açın ve `ffmpeg -version` ile kontrol edin.
 
-### Dönüştürme uzun sürüyor
+### yt-dlp indirilemedi
 
-Büyük dosyalarda indirme ve FFmpeg dönüşümü zaman alabilir. Render ücretsiz planında ilk istek de servis uykudan uyandığı için yavaş gelebilir.
+`npm install` sırasında `youtube-dl-exec` GitHub üzerinden `yt-dlp` indirir. Ağ veya GitHub rate limit sorunu varsa tekrar deneyin ya da environment variable olarak `GH_TOKEN` ekleyin.

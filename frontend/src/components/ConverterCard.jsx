@@ -9,7 +9,7 @@ import {
 import QualitySelector from "./QualitySelector.jsx";
 import ProgressBar from "./ProgressBar.jsx";
 
-const FORMATS = [".mp4", ".mov", ".webm", ".mkv", ".avi", ".wav", ".m4a", ".aac", ".flac"];
+const LINK_TYPES = ["youtube.com/watch", "youtu.be", "Shorts", "Live video"];
 
 export default function ConverterCard({
   url,
@@ -30,7 +30,7 @@ export default function ConverterCard({
       <form onSubmit={onSubmit} className="space-y-5">
         <label className="block space-y-2">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-            Medya linki
+            YouTube linki
           </span>
           <div className="relative">
             <Link2
@@ -42,7 +42,7 @@ export default function ConverterCard({
               value={url}
               onChange={(event) => onUrlChange(event.target.value)}
               disabled={isConverting}
-              placeholder="https://site.com/video.mp4"
+              placeholder="https://www.youtube.com/watch?v=..."
               className="h-14 w-full rounded-lg border border-zinc-200 bg-zinc-50 pl-12 pr-4 text-base text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-70 dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:focus:border-emerald-400 dark:focus:bg-zinc-950"
             />
           </div>
@@ -74,7 +74,7 @@ export default function ConverterCard({
       </form>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        {FORMATS.map((format) => (
+        {LINK_TYPES.map((format) => (
           <span
             key={format}
             className="rounded-md border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-500 dark:border-zinc-800 dark:text-zinc-400"
