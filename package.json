@@ -1,0 +1,18 @@
+{
+  "name": "linkten-mp3-donusturucu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Modern, reklamsiz linkten MP3 donusturucu uygulamasi.",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n frontend,backend -c cyan,green \"npm run dev --workspace frontend\" \"npm run dev --workspace backend\"",
+    "build": "npm run build --workspace frontend",
+    "start": "npm run start --workspace backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
